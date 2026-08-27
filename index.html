@@ -1,0 +1,697 @@
+<!DOCTYPE html>
+<html lang="ru">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport"
+      content="width=device-width,
+               initial-scale=1.0,
+               viewport-fit=cover">
+
+<meta name="apple-mobile-web-app-capable" content="yes">
+<meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
+<meta name="apple-mobile-web-app-title" content="Счётчик">
+
+<title>Счётчик времени</title>
+
+<style>
+    * {
+        box-sizing: border-box;
+        -webkit-tap-highlight-color: transparent;
+    }
+
+    html, body {
+        margin: 0;
+        padding: 0;
+        width: 100%;
+        height: 100%;
+        overflow: hidden;
+        background: #000;
+        color: white;
+        font-family:
+            -apple-system,
+            BlinkMacSystemFont,
+            "SF Pro Display",
+            "Helvetica Neue",
+            Arial,
+            sans-serif;
+    }
+
+    body {
+        min-height: 100vh;
+        min-height: 100dvh;
+    }
+
+    .screen {
+        position: relative;
+        width: 100%;
+        height: 100vh;
+        height: 100dvh;
+
+        display: flex;
+        flex-direction: column;
+        align-items: center;
+        justify-content: space-between;
+
+        padding:
+            max(40px, env(safe-area-inset-top))
+            40px
+            max(30px, env(safe-area-inset-bottom));
+
+        overflow: hidden;
+
+        background:
+            radial-gradient(
+                circle at 50% 42%,
+                rgba(0, 210, 255, 0.10) 0%,
+                rgba(0, 80, 120, 0.04) 28%,
+                transparent 58%
+            ),
+            linear-gradient(
+                135deg,
+                #000000 0%,
+                #020711 50%,
+                #000000 100%
+            );
+    }
+
+    /* Светящийся фон */
+
+    .glow {
+        position: absolute;
+        width: 500px;
+        height: 500px;
+
+        left: 50%;
+        top: 42%;
+
+        transform: translate(-50%, -50%);
+
+        border-radius: 50%;
+
+        background: rgba(0, 200, 255, 0.06);
+
+        filter: blur(80px);
+
+        pointer-events: none;
+    }
+
+    /* Верх */
+
+    .header {
+        text-align: center;
+        z-index: 2;
+    }
+
+    .status {
+        display: flex;
+        justify-content: center;
+        align-items: center;
+        gap: 9px;
+
+        margin-bottom: 14px;
+
+        color: rgba(255,255,255,0.55);
+
+        font-family: monospace;
+        font-size: 14px;
+        letter-spacing: 3px;
+    }
+
+    .dot {
+        width: 7px;
+        height: 7px;
+
+        border-radius: 50%;
+
+        background: #00d9ff;
+
+        box-shadow:
+            0 0 7px #00d9ff,
+            0 0 18px rgba(0,217,255,0.7);
+    }
+
+    .date {
+        font-family: monospace;
+        font-size: 18px;
+        letter-spacing: 1px;
+        color: white;
+    }
+
+    .timezone {
+        margin-top: 8px;
+
+        font-family: monospace;
+        font-size: 11px;
+        letter-spacing: 2px;
+
+        color: rgba(0,217,255,0.65);
+    }
+
+    /* Центр */
+
+    .counter-container {
+        width: 100%;
+        text-align: center;
+        z-index: 2;
+    }
+
+    .counter {
+        width: 100%;
+
+        font-family:
+            "SF Mono",
+            "Menlo",
+            "Monaco",
+            monospace;
+
+        font-size: clamp(42px, 8vw, 110px);
+
+        font-weight: 700;
+
+        letter-spacing: -3px;
+
+        color: #ffffff;
+
+        text-shadow:
+            0 0 8px rgba(0,217,255,0.45),
+            0 0 25px rgba(0,217,255,0.18);
+
+        white-space: nowrap;
+
+        transition: opacity 0.12s ease;
+    }
+
+    .counter.updated {
+        animation: pulse 0.25s ease;
+    }
+
+    @keyframes pulse {
+        0% {
+            opacity: 0.65;
+        }
+
+        100% {
+            opacity: 1;
+        }
+    }
+
+    .unit {
+        margin-top: 15px;
+
+        font-family: monospace;
+        font-size: 14px;
+
+        letter-spacing: 6px;
+
+        color: rgba(255,255,255,0.40);
+    }
+
+    /* Разбивка */
+
+    .breakdown {
+        width: min(900px, 100%);
+
+        display: grid;
+        grid-template-columns:
+            repeat(5, 1fr);
+
+        margin-top: 45px;
+
+        border-top:
+            1px solid rgba(255,255,255,0.10);
+
+        border-bottom:
+            1px solid rgba(255,255,255,0.10);
+
+        padding: 20px 0;
+    }
+
+    .item {
+        position: relative;
+
+        display: flex;
+        flex-direction: column;
+
+        align-items: center;
+        justify-content: center;
+
+        min-width: 0;
+    }
+
+    .item:not(:last-child)::after {
+        content: "";
+
+        position: absolute;
+
+        right: 0;
+        top: 10%;
+        height: 80%;
+
+        width: 1px;
+
+        background:
+            rgba(255,255,255,0.10);
+    }
+
+    .value {
+        font-family: monospace;
+
+        font-size: clamp(20px, 3vw, 34px);
+
+        font-weight: 700;
+
+        color: white;
+    }
+
+    .label {
+        margin-top: 6px;
+
+        font-family: monospace;
+
+        font-size: 9px;
+
+        letter-spacing: 1.8px;
+
+        color:
+            rgba(255,255,255,0.35);
+    }
+
+    /* Низ */
+
+    .footer {
+        text-align: center;
+
+        font-family: monospace;
+
+        font-size: 10px;
+
+        letter-spacing: 1.5px;
+
+        color:
+            rgba(255,255,255,0.25);
+
+        z-index: 2;
+    }
+
+    /* iPad portrait */
+
+    @media (orientation: portrait) {
+
+        .screen {
+            padding-left: 20px;
+            padding-right: 20px;
+        }
+
+        .counter {
+            font-size: clamp(30px, 9vw, 70px);
+            letter-spacing: -2px;
+        }
+
+        .date {
+            font-size: 15px;
+        }
+
+        .breakdown {
+            margin-top: 30px;
+        }
+
+        .value {
+            font-size: 20px;
+        }
+
+        .label {
+            font-size: 7px;
+            letter-spacing: 1px;
+        }
+    }
+
+    /* Маленькие экраны */
+
+    @media (max-height: 650px) {
+
+        .counter {
+            font-size: clamp(35px, 7vw, 70px);
+        }
+
+        .breakdown {
+            margin-top: 20px;
+            padding: 12px 0;
+        }
+    }
+</style>
+</head>
+
+<body>
+
+<div class="screen">
+
+    <div class="glow"></div>
+
+    <!-- HEADER -->
+
+    <div class="header">
+
+        <div class="status">
+            <span class="dot"></span>
+            СЧЁТЧИК ВРЕМЕНИ
+        </div>
+
+        <div class="date">
+            17 ИЮЛЯ 1999 • 12:00:00
+        </div>
+
+        <div class="timezone">
+            МОСКВА • EUROPE/MOSCOW
+        </div>
+
+    </div>
+
+
+    <!-- CENTER -->
+
+    <div class="counter-container">
+
+        <div
+            id="counter"
+            class="counter">
+            0
+        </div>
+
+        <div class="unit">
+            СЕКУНД
+        </div>
+
+
+        <!-- BREAKDOWN -->
+
+        <div class="breakdown">
+
+            <div class="item">
+                <div id="years" class="value">0</div>
+                <div class="label">ЛЕТ</div>
+            </div>
+
+            <div class="item">
+                <div id="days" class="value">0</div>
+                <div class="label">ДНЕЙ</div>
+            </div>
+
+            <div class="item">
+                <div id="hours" class="value">0</div>
+                <div class="label">ЧАСОВ</div>
+            </div>
+
+            <div class="item">
+                <div id="minutes" class="value">0</div>
+                <div class="label">МИНУТ</div>
+            </div>
+
+            <div class="item">
+                <div id="seconds" class="value">0</div>
+                <div class="label">СЕКУНД</div>
+            </div>
+
+        </div>
+
+    </div>
+
+
+    <!-- FOOTER -->
+
+    <div class="footer">
+        17.07.1999 12:00:00 → СЕЙЧАС
+    </div>
+
+</div>
+
+
+<script>
+
+    /*
+     * =====================================================
+     * НАЧАЛЬНАЯ ДАТА
+     * =====================================================
+     *
+     * Москва:
+     *
+     * 17 июля 1999
+     * 12:00:00
+     *
+     * В 1999 году Москва использовала UTC+04:00.
+     *
+     * Поэтому здесь используется конкретный UTC-момент:
+     *
+     * 1999-07-17 08:00:00 UTC
+     *
+     * Это соответствует:
+     *
+     * 17.07.1999 12:00:00 Москва
+     */
+
+    const START_DATE =
+        Date.parse("1999-07-17T08:00:00Z");
+
+
+    /*
+     * Форматирование большого числа
+     *
+     * Например:
+     *
+     * 123456789
+     *
+     * превращается в:
+     *
+     * 123 456 789
+     */
+
+    function formatNumber(number) {
+
+        return new Intl.NumberFormat(
+            "ru-RU",
+            {
+                useGrouping: true
+            }
+        ).format(number);
+
+    }
+
+
+    /*
+     * Получение прошедшего времени
+     */
+
+    function updateCounter() {
+
+        const now = Date.now();
+
+        let difference =
+            Math.max(
+                0,
+                now - START_DATE
+            );
+
+
+        /*
+         * Всего секунд
+         */
+
+        const totalSeconds =
+            Math.floor(
+                difference / 1000
+            );
+
+
+        /*
+         * Годы считаем календарно.
+         *
+         * Для основного счётчика секунд
+         * используется точная разница timestamp.
+         */
+
+        const start =
+            new Date(START_DATE);
+
+        const current =
+            new Date(now);
+
+
+        /*
+         * Количество полных лет
+         */
+
+        let years =
+            current.getUTCFullYear()
+            -
+            start.getUTCFullYear();
+
+
+        const anniversary =
+            new Date(
+                Date.UTC(
+                    start.getUTCFullYear()
+                    + years,
+
+                    start.getUTCMonth(),
+
+                    start.getUTCDate(),
+
+                    start.getUTCHours(),
+
+                    start.getUTCMinutes(),
+
+                    start.getUTCSeconds()
+                )
+            );
+
+
+        if (current < anniversary) {
+            years--;
+        }
+
+
+        /*
+         * Остаток после полных лет
+         */
+
+        const afterYears =
+            new Date(
+                Date.UTC(
+                    start.getUTCFullYear()
+                    + years,
+
+                    start.getUTCMonth(),
+
+                    start.getUTCDate(),
+
+                    start.getUTCHours(),
+
+                    start.getUTCMinutes(),
+
+                    start.getUTCSeconds()
+                )
+            );
+
+
+        let remaining =
+            now -
+            afterYears.getTime();
+
+
+        /*
+         * Дни
+         */
+
+        const DAY =
+            24 * 60 * 60 * 1000;
+
+        const HOUR =
+            60 * 60 * 1000;
+
+        const MINUTE =
+            60 * 1000;
+
+        const SECOND =
+            1000;
+
+
+        const days =
+            Math.floor(
+                remaining / DAY
+            );
+
+        remaining %= DAY;
+
+
+        const hours =
+            Math.floor(
+                remaining / HOUR
+            );
+
+        remaining %= HOUR;
+
+
+        const minutes =
+            Math.floor(
+                remaining / MINUTE
+            );
+
+        remaining %= MINUTE;
+
+
+        const seconds =
+            Math.floor(
+                remaining / SECOND
+            );
+
+
+        /*
+         * Обновляем экран
+         */
+
+        document.getElementById("counter")
+            .textContent =
+            formatNumber(totalSeconds);
+
+
+        document.getElementById("years")
+            .textContent =
+            formatNumber(years);
+
+
+        document.getElementById("days")
+            .textContent =
+            formatNumber(days);
+
+
+        document.getElementById("hours")
+            .textContent =
+            formatNumber(hours);
+
+
+        document.getElementById("minutes")
+            .textContent =
+            formatNumber(minutes);
+
+
+        document.getElementById("seconds")
+            .textContent =
+            String(seconds)
+                .padStart(2, "0");
+
+
+        /*
+         * Лёгкая анимация изменения
+         */
+
+        const counter =
+            document.getElementById("counter");
+
+        counter.classList.remove("updated");
+
+        void counter.offsetWidth;
+
+        counter.classList.add("updated");
+
+    }
+
+
+    /*
+     * Первый запуск
+     */
+
+    updateCounter();
+
+
+    /*
+     * Обновление каждую секунду
+     */
+
+    setInterval(
+        updateCounter,
+        1000
+    );
+
+</script>
+
+</body>
+</html>
